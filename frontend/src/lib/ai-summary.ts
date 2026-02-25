@@ -1,4 +1,3 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { RiskAnalysis, PortfolioData } from "@/types";
 
 const SYSTEM_PROMPT = `You are StarkSight, an AI DeFi portfolio guardian. You analyze Starknet portfolios and provide concise, actionable risk assessments.
@@ -62,6 +61,32 @@ ${actionSummary}
 Provide a concise risk assessment summary (2-4 short paragraphs). Be specific about risks and recommendations.`;
 }
 
+// Models to try in order (each has separate quota)
+const MODELS = [
+  "gemini-2.0-flash",
+  "gemini-2.0-flash-lite",
+  "gemini-1.5-flash",
+];
+
+async function callGeminiREST(apiKey: string, model: string, prompt: string): Promise<string> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: { maxOutputTokens: 400, temperature: 0.3 },
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Gemini ${model}: ${res.status}`);
+  }
+
+  const data = await res.json();
+  return data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+}
+
 export async function generateAISummary(
   portfolio: PortfolioData,
   analysis: Omit<RiskAnalysis, "aiSummary">
@@ -72,28 +97,20 @@ export async function generateAISummary(
     return generateFallbackSummary(analysis);
   }
 
-  try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+  const prompt = SYSTEM_PROMPT + "\n\n" + buildAnalysisPrompt(portfolio, analysis);
 
-    const prompt = buildAnalysisPrompt(portfolio, analysis);
-
-    const result = await model.generateContent({
-      contents: [
-        { role: "user", parts: [{ text: SYSTEM_PROMPT + "\n\n" + prompt }] },
-      ],
-      generationConfig: {
-        maxOutputTokens: 400,
-        temperature: 0.3,
-      },
-    });
-
-    const text = result.response.text();
-    return text || generateFallbackSummary(analysis);
-  } catch (error) {
-    console.error("AI summary generation failed:", error);
-    return generateFallbackSummary(analysis);
+  // Try each model until one works
+  for (const model of MODELS) {
+    try {
+      const text = await callGeminiREST(apiKey, model, prompt);
+      if (text) return text;
+    } catch {
+      // Try next model
+    }
   }
+
+  // All models rate-limited — use local fallback
+  return generateFallbackSummary(analysis);
 }
 
 function generateFallbackSummary(
