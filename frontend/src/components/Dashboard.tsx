@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Shield,
   RefreshCw,
@@ -8,9 +9,12 @@ import {
   Bitcoin,
   Brain,
   AlertTriangle,
-  CheckCircle,
   Info,
   ChevronRight,
+  ChevronDown,
+  Lock,
+  Cpu,
+  Eye,
 } from "lucide-react";
 import { usePortfolio } from "@/hooks/usePortfolio";
 import { useRiskAnalysis } from "@/hooks/useRiskAnalysis";
@@ -22,6 +26,15 @@ import { usdToBtc, formatBtc } from "@/lib/prices";
 interface DashboardProps {
   address: string;
 }
+
+const METHODOLOGY = [
+  { name: "Token Diversity", weight: 15, desc: "Number of distinct tokens held" },
+  { name: "Concentration", weight: 20, desc: "Largest single-token allocation %" },
+  { name: "Stability Buffer", weight: 15, desc: "Stablecoin allocation ratio" },
+  { name: "BTC Exposure", weight: 15, desc: "Bitcoin store-of-value presence" },
+  { name: "BTC Bridge Risk", weight: 15, desc: "WBTC bridge dependency level" },
+  { name: "Portfolio Size", weight: 20, desc: "Total portfolio value tier" },
+];
 
 function ScoreGauge({ score, label }: { score: number; label: string }) {
   const color =
@@ -78,7 +91,7 @@ function ScoreGauge({ score, label }: { score: number; label: string }) {
   );
 }
 
-function RiskBar({ name, score, label, reason }: { name: string; score: number; label: string; reason: string }) {
+function RiskBar({ name, score, label, reason, weight }: { name: string; score: number; label: string; reason: string; weight?: number }) {
   const color =
     label === "safe"
       ? "bg-success"
@@ -91,7 +104,12 @@ function RiskBar({ name, score, label, reason }: { name: string; score: number; 
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between text-sm">
-        <span className="font-medium">{name}</span>
+        <span className="font-medium">
+          {name}
+          {weight !== undefined && (
+            <span className="text-xs text-muted ml-1">({weight}%)</span>
+          )}
+        </span>
         <span className={getRiskColor(label)}>{score}/100</span>
       </div>
       <div className="h-2 rounded-full bg-card-border overflow-hidden">
@@ -107,7 +125,8 @@ function RiskBar({ name, score, label, reason }: { name: string; score: number; 
 
 export function Dashboard({ address }: DashboardProps) {
   const { portfolio, loading, refetch, prices } = usePortfolio(address);
-  const { analysis, analyzing, reanalyze } = useRiskAnalysis(portfolio);
+  const { analysis, analyzing, reanalyze, aiSource } = useRiskAnalysis(portfolio);
+  const [showMethodology, setShowMethodology] = useState(false);
 
   const btcPrice = prices.BTC || prices.WBTC || 95000;
   const portfolioBtcValue = portfolio ? usdToBtc(portfolio.totalValueUsd, btcPrice) : 0;
@@ -116,6 +135,8 @@ export function Dashboard({ address }: DashboardProps) {
     refetch();
     setTimeout(reanalyze, 1000);
   };
+
+  const vectorWeights = [15, 20, 15, 15, 15, 20];
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
@@ -216,8 +237,45 @@ export function Dashboard({ address }: DashboardProps) {
             <div className="rounded-xl border border-card-border bg-card p-6 flex flex-col items-center">
               <ScoreGauge score={analysis.overallScore} label={analysis.overallLabel} />
               <p className="mt-4 text-sm text-muted text-center">
-                Overall portfolio health score
+                Weighted composite of 6 risk vectors
               </p>
+              <button
+                onClick={() => setShowMethodology(!showMethodology)}
+                className="mt-2 flex items-center gap-1 text-xs text-accent hover:text-accent-light transition-colors"
+              >
+                <Eye className="h-3 w-3" />
+                {showMethodology ? "Hide" : "View"} Methodology
+                <ChevronDown className={`h-3 w-3 transition-transform ${showMethodology ? "rotate-180" : ""}`} />
+              </button>
+            </div>
+          )}
+
+          {/* Methodology Panel */}
+          {showMethodology && (
+            <div className="rounded-xl border border-accent/20 bg-accent/5 p-4">
+              <h4 className="text-xs font-semibold text-accent mb-3 flex items-center gap-1.5">
+                <Lock className="h-3 w-3" />
+                Open Scoring Methodology
+              </h4>
+              <p className="text-xs text-muted mb-3">
+                Score = weighted sum of 6 deterministic risk vectors. Same inputs always produce the same score. No hidden factors.
+              </p>
+              <div className="space-y-2">
+                {METHODOLOGY.map((m) => (
+                  <div key={m.name} className="flex items-center justify-between text-xs">
+                    <span className="text-foreground/80">{m.name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted">{m.desc}</span>
+                      <span className="font-mono text-accent font-bold">{m.weight}%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 pt-3 border-t border-card-border">
+                <p className="text-xs text-muted">
+                  All scoring runs client-side in your browser. Scores are deterministic and verifiable — identical portfolios always produce identical scores.
+                </p>
+              </div>
             </div>
           )}
 
@@ -229,8 +287,8 @@ export function Dashboard({ address }: DashboardProps) {
                 Risk Vectors
               </h3>
               <div className="space-y-4">
-                {analysis.vectors.map((v) => (
-                  <RiskBar key={v.name} {...v} />
+                {analysis.vectors.map((v, i) => (
+                  <RiskBar key={v.name} {...v} weight={vectorWeights[i]} />
                 ))}
               </div>
             </div>
@@ -242,10 +300,31 @@ export function Dashboard({ address }: DashboardProps) {
           {/* AI Summary */}
           {analysis && (
             <div className="rounded-xl border border-accent/20 bg-accent/5 p-6">
-              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                <Brain className="h-4 w-4 text-accent" />
-                AI Risk Assessment
-              </h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <Brain className="h-4 w-4 text-accent" />
+                  AI Risk Assessment
+                </h3>
+                {!analyzing && (
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                    aiSource === "gemini"
+                      ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+                      : "bg-accent/10 text-accent border border-accent/20"
+                  }`}>
+                    {aiSource === "gemini" ? (
+                      <>
+                        <Cpu className="h-2.5 w-2.5" />
+                        Gemini AI
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="h-2.5 w-2.5" />
+                        Local Analysis
+                      </>
+                    )}
+                  </span>
+                )}
+              </div>
               {analyzing ? (
                 <div className="space-y-2">
                   <div className="h-4 w-full animate-pulse rounded bg-card-border" />
@@ -253,9 +332,21 @@ export function Dashboard({ address }: DashboardProps) {
                   <div className="h-4 w-5/6 animate-pulse rounded bg-card-border" />
                 </div>
               ) : (
-                <div className="text-sm text-foreground/80 leading-relaxed whitespace-pre-line">
-                  {analysis.aiSummary}
-                </div>
+                <>
+                  <div
+                    className="text-sm text-foreground/80 leading-relaxed whitespace-pre-line"
+                    dangerouslySetInnerHTML={{
+                      __html: analysis.aiSummary
+                        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+                        .replace(/\n/g, "<br />"),
+                    }}
+                  />
+                  <p className="mt-3 text-[10px] text-muted border-t border-card-border pt-2">
+                    {aiSource === "gemini"
+                      ? "AI receives only anonymized metrics (% allocations, risk scores) — never wallet addresses or exact balances."
+                      : "Analysis generated locally in your browser using deterministic heuristics. No data sent externally."}
+                  </p>
+                </>
               )}
             </div>
           )}
@@ -411,9 +502,23 @@ export function Dashboard({ address }: DashboardProps) {
         </div>
       </div>
 
-      {/* Privacy Notice */}
-      <div className="mt-8 rounded-lg border border-accent/20 bg-accent/5 px-4 py-3 text-center text-xs text-accent-light">
-        Privacy Mode Active — All risk analysis runs client-side. Only anonymized metrics are sent to AI. No wallet data touches any server.
+      {/* Trust & Privacy Footer */}
+      <div className="mt-8 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-lg border border-accent/20 bg-accent/5 px-4 py-3 text-center">
+          <Lock className="h-4 w-4 text-accent mx-auto mb-1" />
+          <p className="text-xs font-medium text-accent">Client-Side Analysis</p>
+          <p className="text-[10px] text-muted">All scoring runs in your browser</p>
+        </div>
+        <div className="rounded-lg border border-accent/20 bg-accent/5 px-4 py-3 text-center">
+          <Eye className="h-4 w-4 text-accent mx-auto mb-1" />
+          <p className="text-xs font-medium text-accent">Open Methodology</p>
+          <p className="text-[10px] text-muted">Deterministic, verifiable scoring</p>
+        </div>
+        <div className="rounded-lg border border-accent/20 bg-accent/5 px-4 py-3 text-center">
+          <Shield className="h-4 w-4 text-accent mx-auto mb-1" />
+          <p className="text-xs font-medium text-accent">ZK Attestations</p>
+          <p className="text-[10px] text-muted">Scores proven on-chain via Pedersen</p>
+        </div>
       </div>
     </div>
   );

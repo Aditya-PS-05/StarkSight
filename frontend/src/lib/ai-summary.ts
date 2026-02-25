@@ -17,7 +17,6 @@ function buildAnalysisPrompt(
   portfolio: PortfolioData,
   analysis: Omit<RiskAnalysis, "aiSummary">
 ): string {
-  // Send only aggregated/anonymized metrics — not wallet address or raw balances
   const tokenSummary = portfolio.tokens
     .map((t) => {
       const pct = portfolio.totalValueUsd > 0
@@ -87,14 +86,16 @@ async function callGeminiREST(apiKey: string, model: string, prompt: string): Pr
   return data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 }
 
+export type AISummaryResult = { text: string; source: "gemini" | "local" };
+
 export async function generateAISummary(
   portfolio: PortfolioData,
   analysis: Omit<RiskAnalysis, "aiSummary">
-): Promise<string> {
+): Promise<AISummaryResult> {
   const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
 
   if (!apiKey) {
-    return generateFallbackSummary(analysis);
+    return { text: generateFallbackSummary(analysis), source: "local" };
   }
 
   const prompt = SYSTEM_PROMPT + "\n\n" + buildAnalysisPrompt(portfolio, analysis);
@@ -103,14 +104,14 @@ export async function generateAISummary(
   for (const model of MODELS) {
     try {
       const text = await callGeminiREST(apiKey, model, prompt);
-      if (text) return text;
+      if (text) return { text, source: "gemini" };
     } catch {
       // Try next model
     }
   }
 
   // All models rate-limited — use local fallback
-  return generateFallbackSummary(analysis);
+  return { text: generateFallbackSummary(analysis), source: "local" };
 }
 
 function generateFallbackSummary(

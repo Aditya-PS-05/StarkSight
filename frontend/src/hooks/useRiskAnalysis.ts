@@ -8,6 +8,7 @@ import { generateAISummary } from "@/lib/ai-summary";
 export function useRiskAnalysis(portfolio: PortfolioData | null) {
   const [analysis, setAnalysis] = useState<RiskAnalysis | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [aiSource, setAiSource] = useState<"gemini" | "local">("local");
 
   const analyze = useCallback(async () => {
     if (!portfolio || portfolio.tokens.length === 0) {
@@ -17,15 +18,17 @@ export function useRiskAnalysis(portfolio: PortfolioData | null) {
 
     setAnalyzing(true);
 
-    // Step 1: Heuristic risk scoring (instant)
+    // Step 1: Heuristic risk scoring (instant) — show immediately
     const heuristicResult = analyzePortfolio(portfolio);
+    setAnalysis({ ...heuristicResult, aiSummary: "" });
 
     // Step 2: AI summary (async, may take 1-3s)
-    const aiSummary = await generateAISummary(portfolio, heuristicResult);
+    const { text, source } = await generateAISummary(portfolio, heuristicResult);
+    setAiSource(source);
 
     setAnalysis({
       ...heuristicResult,
-      aiSummary,
+      aiSummary: text,
     });
 
     setAnalyzing(false);
@@ -38,5 +41,5 @@ export function useRiskAnalysis(portfolio: PortfolioData | null) {
     }
   }, [portfolio, analyze]);
 
-  return { analysis, analyzing, reanalyze: analyze };
+  return { analysis, analyzing, reanalyze: analyze, aiSource };
 }
