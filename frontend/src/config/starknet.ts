@@ -1,5 +1,5 @@
 export const STARKNET_CONFIG = {
-  rpcUrl: process.env.NEXT_PUBLIC_STARKNET_RPC_URL || "https://starknet-sepolia.public.blastapi.io/rpc/v0_7",
+  rpcUrl: process.env.NEXT_PUBLIC_STARKNET_RPC_URL || "https://api.cartridge.gg/x/starknet/sepolia",
   network: "sepolia" as const,
   explorerUrl: "https://sepolia.starkscan.co",
   voyagerUrl: "https://sepolia.voyager.online",
