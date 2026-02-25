@@ -1,0 +1,127 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import type { RiskAnalysis, PortfolioData } from "@/types";
+
+const SYSTEM_PROMPT = `You are StarkSight, an AI DeFi portfolio guardian. You analyze Starknet portfolios and provide concise, actionable risk assessments.
+
+RULES:
+- Be direct and specific. No fluff.
+- Use 2-4 short paragraphs max.
+- Mention specific tokens and their risk factors.
+- End with 1-2 actionable recommendations.
+- Never reveal exact wallet addresses or balances in your response (privacy first).
+- Use risk terminology: safe, caution, warning, danger.
+- Reference the StarkSight Score and what it means.
+
+You receive ONLY aggregated portfolio metrics — never raw addresses or full balances. This preserves user privacy.`;
+
+function buildAnalysisPrompt(
+  portfolio: PortfolioData,
+  analysis: Omit<RiskAnalysis, "aiSummary">
+): string {
+  // Send only aggregated/anonymized metrics — not wallet address or raw balances
+  const tokenSummary = portfolio.tokens
+    .map((t) => {
+      const pct = portfolio.totalValueUsd > 0
+        ? ((t.usdValue / portfolio.totalValueUsd) * 100).toFixed(1)
+        : "0";
+      return `${t.symbol}: ${pct}% of portfolio`;
+    })
+    .join(", ");
+
+  const vectorSummary = analysis.vectors
+    .map((v) => `${v.name}: ${v.score}/100 (${v.label}) — ${v.reason}`)
+    .join("\n");
+
+  const tokenRiskSummary = analysis.tokenRisks
+    .map((t) => `${t.symbol}: ${t.riskScore}/100 (${t.riskLabel}) — ${t.reasons.join("; ")}`)
+    .join("\n");
+
+  const actionSummary = analysis.shieldActions
+    .map((a) => `[${a.severity}] ${a.title}: ${a.description}`)
+    .join("\n");
+
+  return `Analyze this Starknet portfolio:
+
+PORTFOLIO METRICS (privacy-safe aggregates only):
+- Total tokens: ${portfolio.tokens.length}
+- Token allocation: ${tokenSummary}
+- Has BTC exposure: ${portfolio.tokens.some((t) => t.symbol === "WBTC") ? "Yes (WBTC)" : "No"}
+- Has stablecoins: ${portfolio.tokens.some((t) => ["USDC", "USDT", "DAI"].includes(t.symbol)) ? "Yes" : "No"}
+
+RISK VECTORS:
+${vectorSummary}
+
+OVERALL STARKSIGHT SCORE: ${analysis.overallScore}/100 (${analysis.overallLabel})
+
+TOKEN RISKS:
+${tokenRiskSummary}
+
+RECOMMENDED SHIELD ACTIONS:
+${actionSummary}
+
+Provide a concise risk assessment summary (2-4 short paragraphs). Be specific about risks and recommendations.`;
+}
+
+export async function generateAISummary(
+  portfolio: PortfolioData,
+  analysis: Omit<RiskAnalysis, "aiSummary">
+): Promise<string> {
+  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+
+  if (!apiKey) {
+    return generateFallbackSummary(analysis);
+  }
+
+  try {
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+    const prompt = buildAnalysisPrompt(portfolio, analysis);
+
+    const result = await model.generateContent({
+      contents: [
+        { role: "user", parts: [{ text: SYSTEM_PROMPT + "\n\n" + prompt }] },
+      ],
+      generationConfig: {
+        maxOutputTokens: 400,
+        temperature: 0.3,
+      },
+    });
+
+    const text = result.response.text();
+    return text || generateFallbackSummary(analysis);
+  } catch (error) {
+    console.error("AI summary generation failed:", error);
+    return generateFallbackSummary(analysis);
+  }
+}
+
+function generateFallbackSummary(
+  analysis: Omit<RiskAnalysis, "aiSummary">
+): string {
+  const { overallScore, overallLabel, vectors, shieldActions } = analysis;
+
+  const weakest = [...vectors].sort((a, b) => a.score - b.score)[0];
+  const strongest = [...vectors].sort((a, b) => b.score - a.score)[0];
+
+  let summary = `Your StarkSight Score is **${overallScore}/100** (${overallLabel.toUpperCase()}). `;
+
+  if (overallLabel === "safe") {
+    summary += "Your portfolio shows a healthy risk profile across all vectors.";
+  } else if (overallLabel === "caution") {
+    summary += "Some areas need attention but no critical risks detected.";
+  } else if (overallLabel === "warning") {
+    summary += "Multiple risk factors flagged — consider rebalancing.";
+  } else {
+    summary += "Significant risks detected — immediate action recommended.";
+  }
+
+  summary += `\n\nStrongest area: **${strongest.name}** (${strongest.score}/100) — ${strongest.reason}. `;
+  summary += `Weakest area: **${weakest.name}** (${weakest.score}/100) — ${weakest.reason}.`;
+
+  if (shieldActions.length > 0 && shieldActions[0].title !== "Portfolio looks healthy") {
+    summary += `\n\nTop recommendation: ${shieldActions[0].title} — ${shieldActions[0].description}`;
+  }
+
+  return summary;
+}
