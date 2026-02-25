@@ -125,5 +125,5 @@ export function usePortfolio(address: string | undefined) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { portfolio, loading, refetch };
+  return { portfolio, loading, refetch, prices };
 }

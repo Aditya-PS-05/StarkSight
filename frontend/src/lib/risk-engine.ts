@@ -10,11 +10,12 @@ import { getRiskLabel } from "@/types";
 
 // --- Risk Vector Weights (inspired by ShieldBot + Aegis) ---
 const WEIGHTS = {
-  tokenDiversity: 0.2,
-  concentration: 0.25,
+  tokenDiversity: 0.15,
+  concentration: 0.20,
   stablecoinRatio: 0.15,
   btcExposure: 0.15,
-  portfolioSize: 0.25,
+  btcBridgeRisk: 0.15,
+  portfolioSize: 0.20,
 };
 
 // --- Individual Vector Scorers ---
@@ -123,6 +124,43 @@ function scoreBtcExposure(portfolio: PortfolioData): RiskVector {
   }
 
   return { name: "BTC Exposure", score, label: getRiskLabel(score), reason };
+}
+
+function scoreBtcBridgeRisk(portfolio: PortfolioData): RiskVector {
+  const wbtc = portfolio.tokens.find((t) => t.symbol === "WBTC");
+
+  if (!wbtc || wbtc.balance === 0n) {
+    return {
+      name: "BTC Bridge Risk",
+      score: 90,
+      label: "safe",
+      reason: "No wrapped BTC — no bridge risk exposure",
+    };
+  }
+
+  // WBTC on Starknet goes through a bridge — inherent bridge risk
+  const wbtcPct = portfolio.totalValueUsd > 0
+    ? (wbtc.usdValue / portfolio.totalValueUsd) * 100
+    : 0;
+
+  let score: number;
+  let reason: string;
+
+  if (wbtcPct > 50) {
+    score = 30;
+    reason = `${wbtcPct.toFixed(0)}% in WBTC — heavy bridge dependency. Bridge exploit could impact majority of portfolio`;
+  } else if (wbtcPct > 25) {
+    score = 50;
+    reason = `${wbtcPct.toFixed(0)}% in WBTC — significant bridge exposure. Depeg or bridge downtime is material risk`;
+  } else if (wbtcPct > 10) {
+    score = 70;
+    reason = `${wbtcPct.toFixed(0)}% in WBTC — moderate bridge exposure. Monitor bridge health and WBTC/BTC peg`;
+  } else {
+    score = 85;
+    reason = `${wbtcPct.toFixed(0)}% in WBTC — low bridge exposure. Risk is contained`;
+  }
+
+  return { name: "BTC Bridge Risk", score, label: getRiskLabel(score), reason };
 }
 
 function scorePortfolioSize(portfolio: PortfolioData): RiskVector {
@@ -262,13 +300,21 @@ function generateShieldActions(
   }
 
   // WBTC bridge risk
-  const wbtcRisk = tokenRisks.find((t) => t.symbol === "WBTC");
-  if (wbtcRisk && wbtcRisk.riskScore < 60) {
+  const bridgeVector = vectors.find((v) => v.name === "BTC Bridge Risk");
+  if (bridgeVector && bridgeVector.score < 50) {
+    actions.push({
+      id: `shield-${id++}`,
+      severity: "critical",
+      title: "High bridge dependency",
+      description: "A large share of your portfolio depends on the WBTC bridge. Consider reducing exposure or diversifying across native assets to limit bridge exploit risk.",
+      actionType: "rebalance",
+    });
+  } else if (bridgeVector && bridgeVector.score < 75) {
     actions.push({
       id: `shield-${id++}`,
       severity: "warning",
       title: "Monitor WBTC bridge health",
-      description: "Your WBTC position carries bridge risk. Monitor the wrapped BTC peg and bridge reserves regularly.",
+      description: "Your WBTC position carries bridge risk. Check the WBTC/BTC peg ratio and bridge reserves regularly.",
       actionType: "monitor",
     });
   }
@@ -307,6 +353,7 @@ export function analyzePortfolio(portfolio: PortfolioData): Omit<RiskAnalysis, "
     scoreConcentration(portfolio),
     scoreStablecoinRatio(portfolio),
     scoreBtcExposure(portfolio),
+    scoreBtcBridgeRisk(portfolio),
     scorePortfolioSize(portfolio),
   ];
 

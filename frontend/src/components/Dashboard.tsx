@@ -17,6 +17,7 @@ import { useRiskAnalysis } from "@/hooks/useRiskAnalysis";
 import { formatUsd } from "@/lib/utils";
 import { getRiskColor, getRiskBgColor } from "@/types";
 import { AttestationPanel } from "@/components/AttestationPanel";
+import { usdToBtc, formatBtc } from "@/lib/prices";
 
 interface DashboardProps {
   address: string;
@@ -105,8 +106,11 @@ function RiskBar({ name, score, label, reason }: { name: string; score: number; 
 }
 
 export function Dashboard({ address }: DashboardProps) {
-  const { portfolio, loading, refetch } = usePortfolio(address);
+  const { portfolio, loading, refetch, prices } = usePortfolio(address);
   const { analysis, analyzing, reanalyze } = useRiskAnalysis(portfolio);
+
+  const btcPrice = prices.BTC || prices.WBTC || 95000;
+  const portfolioBtcValue = portfolio ? usdToBtc(portfolio.totalValueUsd, btcPrice) : 0;
 
   const handleRefresh = () => {
     refetch();
@@ -146,9 +150,17 @@ export function Dashboard({ address }: DashboardProps) {
           {loading ? (
             <div className="h-8 w-32 animate-pulse rounded bg-card-border" />
           ) : (
-            <p className="text-2xl font-bold">
-              {portfolio ? formatUsd(portfolio.totalValueUsd) : "$0.00"}
-            </p>
+            <>
+              <p className="text-2xl font-bold">
+                {portfolio ? formatUsd(portfolio.totalValueUsd) : "$0.00"}
+              </p>
+              {portfolio && portfolio.totalValueUsd > 0 && (
+                <p className="text-xs text-warning mt-1 flex items-center gap-1">
+                  <Bitcoin className="h-3 w-3" />
+                  {formatBtc(portfolioBtcValue)} BTC
+                </p>
+              )}
+            </>
           )}
           <p className="text-xs text-muted mt-1">
             {portfolio ? `${portfolio.tokens.length} tokens` : "—"}
