@@ -17,6 +17,12 @@ export const metadata: Metadata = {
   title: "StarkSight — AI-Powered Private Portfolio Guardian",
   description:
     "Privacy-preserving AI portfolio analysis on Starknet. Get risk scores, shield actions, and on-chain attestations without exposing your holdings.",
+  keywords: ["Starknet", "DeFi", "Privacy", "Bitcoin", "WBTC", "ZK", "AI", "Portfolio", "Risk"],
+  openGraph: {
+    title: "StarkSight — AI-Powered Private Portfolio Guardian",
+    description: "Know Your Risk. Keep Your Privacy. AI portfolio analysis on Starknet.",
+    type: "website",
+  },
 };
 
 export default function RootLayout({

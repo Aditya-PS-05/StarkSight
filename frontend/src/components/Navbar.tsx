@@ -2,13 +2,25 @@
 
 import { useAccount, useConnect, useDisconnect } from "@starknet-react/core";
 import { Shield, Wallet, LogOut, ChevronDown } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
 export function Navbar() {
   const { address, isConnected } = useAccount();
   const { connect, connectors } = useConnect();
   const { disconnect } = useDisconnect();
   const [showConnectors, setShowConnectors] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowConnectors(false);
+      }
+    }
+    if (showConnectors) document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showConnectors]);
 
   const truncatedAddress = address
     ? `${address.slice(0, 6)}...${address.slice(-4)}`
@@ -28,6 +40,9 @@ export function Navbar() {
         </div>
 
         <div className="flex items-center gap-3">
+          <span className="hidden sm:inline-flex items-center rounded-full bg-warning/10 border border-warning/20 px-2 py-0.5 text-[10px] font-medium text-warning">
+            Sepolia Testnet
+          </span>
           {isConnected ? (
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-2 rounded-lg bg-card border border-card-border px-3 py-2">
@@ -42,7 +57,7 @@ export function Navbar() {
               </button>
             </div>
           ) : (
-            <div className="relative">
+            <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setShowConnectors(!showConnectors)}
                 className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-light"
@@ -52,7 +67,7 @@ export function Navbar() {
                 <ChevronDown className="h-3 w-3" />
               </button>
               {showConnectors && (
-                <div className="absolute right-0 top-12 w-48 rounded-lg border border-card-border bg-card p-2 shadow-xl">
+                <div className="absolute right-0 top-12 w-48 rounded-lg border border-card-border bg-card p-2 shadow-xl z-50">
                   {connectors.map((connector) => (
                     <button
                       key={connector.id}
