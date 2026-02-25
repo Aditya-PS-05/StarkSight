@@ -16,6 +16,7 @@ import { usePortfolio } from "@/hooks/usePortfolio";
 import { useRiskAnalysis } from "@/hooks/useRiskAnalysis";
 import { formatUsd } from "@/lib/utils";
 import { getRiskColor, getRiskBgColor } from "@/types";
+import { AttestationPanel } from "@/components/AttestationPanel";
 
 interface DashboardProps {
   address: string;
@@ -351,6 +352,13 @@ export function Dashboard({ address }: DashboardProps) {
               </div>
             </div>
           )}
+
+          {/* ZK Attestation */}
+          <AttestationPanel
+            walletAddress={address}
+            score={analysis?.overallScore ?? null}
+            scoreLabel={analysis?.overallLabel ?? null}
+          />
 
           {/* Per-Token Risk Details */}
           {analysis && analysis.tokenRisks.length > 0 && (
