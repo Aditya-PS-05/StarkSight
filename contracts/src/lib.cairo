@@ -1,1 +1,1 @@
-mod attestation_registry;
+pub mod attestation_registry;

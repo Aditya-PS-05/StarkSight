@@ -32,5 +32,12 @@ export const DEFI_PROTOCOLS: Record<string, { name: string; type: string; url: s
   nostra: { name: "Nostra", type: "Lending", url: "https://nostra.finance" },
 };
 
-// Attestation Registry contract (to be deployed)
+// Attestation Registry contract
 export const ATTESTATION_REGISTRY_ADDRESS = process.env.NEXT_PUBLIC_ATTESTATION_REGISTRY || "";
+
+// Tongo confidential token contracts (Sepolia)
+export const TONGO_CONTRACTS: Record<string, string> = {
+  STRK: "0x0408163b87b1fae7e848e47bce96b3e6a32e427971bba64d95e1a5bb0a9b5b12",
+  ETH: "0x02cf0dc1e2ea90e3ba7a944e83c7839efb3e3da48c75975d74f7f7f2ac51c5d3",
+  USDC: "0x02caae36c52b4e696aee6e9dcf29a8e581e52c1dbed43ac65183946b556e16e3",
+};

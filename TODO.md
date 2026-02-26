@@ -76,11 +76,10 @@ Targets all 3 tracks: Privacy + Bitcoin + Wildcard.
 
 ### HIGH IMPACT (do these first)
 
-#### 10.1 Deploy Frontend to Vercel
-- [ ] Deploy to Vercel with live URL
-- [ ] Set environment variables (RPC URL, contract address, Gemini API key)
+#### 10.1 Deploy Frontend to Vercel ✅
+- [x] Deploy to Vercel with live URL → https://starksight-app.vercel.app
+- [x] Set environment variables (RPC URL, contract address, Gemini API key)
 - [ ] Test full flow on deployed version
-- [ ] Many projects won't have a live demo — this is a massive edge
 
 #### 10.2 Record 3-Minute Video Demo
 - [ ] Show landing page → connect wallet → portfolio loads
@@ -132,8 +131,7 @@ Targets all 3 tracks: Privacy + Bitcoin + Wildcard.
 - [ ] Judges may check for tests
 
 #### 10.9 GitHub Polish
-- [ ] Create public repo
-- [ ] Clean commit history
+- [x] Create public repo → https://github.com/Aditya-PS-05/StarkSight
 - [ ] Add LICENSE (MIT)
 - [ ] Add architecture diagram to README
 
